@@ -34,7 +34,7 @@ from scipy import ndimage as ndi
 
 from htmresearch.frameworks.thalamus.thalamus import Thalamus
 from htmresearch.frameworks.thalamus.thalamus_utils import (
-  createLocationEncoder, encodeLocation, trainThalamusLocations,
+  createLocationEncoder, encodeLocation, trainThalamusLocations, inferThalamus,
   getUnionLocations, defaultDtype)
 
 
@@ -81,25 +81,6 @@ def plotActivity(activity, filename,
   plt.close()
 
 
-def inferThalamus(t, l6Input, ffInput):
-  """
-  Compute the effect of this feed forward input given the specific L6 input.
-
-  :param t: instance of Thalamus
-  :param l6Input:
-  :param ffInput: a numpy array of 0's and 1's
-  :return:
-  """
-  print("\n-----------")
-  t.reset()
-  t.deInactivateCells(l6Input)
-  ffOutput = t.computeFeedForwardActivity(ffInput)
-  # print("L6 input:", l6Input)
-  # print("Active TRN cells: ", t.activeTRNCellIndices)
-  # print("Burst ready relay cells: ", t.burstReadyCellIndices)
-  return ffOutput
-
-
 def locationsTest():
   """Test with square and blocky A"""
   t = Thalamus()
@@ -137,7 +118,7 @@ def locationsTest():
                  cmap="coolwarm")
 
 
-def largeThalamus(w=250):
+def attention(w=250):
   print("Initializing thalamus")
   t = Thalamus(
     trnCellShape=(w, w),
@@ -209,8 +190,9 @@ def power(image, kernel):
 
 def filtered(w=250):
   """
-  In this example we filter the image into several channels using gabor filters. L6 activity is used to select
-  one of those channels. Only activity selected by those channels burst.
+  In this example we filter the image into several channels using gabor filters. L6
+  activity is used to select one of those channels. Only activity selected by those
+  channels burst.
   """
   # prepare filter bank kernels
   kernels = []
@@ -295,6 +277,6 @@ def basicTest():
 
 if __name__ == '__main__':
 
-  # largeThalamus(250)
-  # basicTest()
+  basicTest()
+  attention(250)
   filtered(250)

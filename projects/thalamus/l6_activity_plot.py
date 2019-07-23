@@ -24,6 +24,9 @@
 This file plots activity of L6 cells over time
 """
 
+from __future__ import print_function
+
+import os
 import plotly
 import plotly.plotly as py
 import plotly.graph_objs as go
@@ -36,7 +39,7 @@ plotlyAPIKey = os.environ['PLOTLY_API_KEY']
 py.sign_in(plotlyUser, plotlyAPIKey)
 
 
-def plotL6SDRs(encoder, t):
+def plotL6SDRs(encoder, t, filename="L6_activity.pdf"):
   output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
 
   shapes = []
@@ -102,13 +105,14 @@ def plotL6SDRs(encoder, t):
     'data': data,
     'layout': layout,
   }
-  plotPath = plotly.offline.plot(fig, filename='temp.html',
-                                  auto_open=True)
-  print("url=", plotPath)
+  plotPath = plotly.offline.plot(fig, filename='temp.html', auto_open=False)
 
   # Can't save image files in offline mode
   plotly.plotly.image.save_as(
-    fig, filename=os.path.join("images", "L6_activity.pdf"), scale=1)
+    fig, filename=os.path.join("images", filename), scale=1)
+
+  print("url for HTML version =", plotPath)
+  print("L6 patterns saved in file:", filename)
 
 
 if __name__ == "__main__":

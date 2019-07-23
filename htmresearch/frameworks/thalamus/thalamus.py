@@ -154,15 +154,19 @@ class Thalamus(object):
       this pattern. For each cell, create a new dendrite that stores this
       pattern. The SDR is stored on this dendrite
 
-
+    :return: the list of TRN cell indices that learned this pattern
     """
     cellIndices = [self.trnCellIndex(x) for x in cellsToLearnOn]
     newSegments = self.trnConnections.createSegments(cellIndices)
     self.trnConnections.growSynapses(newSegments, l6Pattern, 1.0)
 
+    # At this point we would want to train relay cells around each TRN cell
+
     # print("Learning L6 SDR:", l6Pattern,
     #       "new segments: ", newSegments,
     #       "cells:", self.trnConnections.mapSegmentsToCells(newSegments))
+
+    return cellIndices
 
 
   def deInactivateCells(self, l6Input):
@@ -296,6 +300,32 @@ class Thalamus(object):
     """
     Initialize TRN to relay cell connectivity. For each relay cell, create a
     dendritic segment for each TRN cell it connects to.
+    """
+    for x in range(self.relayWidth):
+      for y in range(self.relayHeight):
+
+        # Create one dendrite for each trn cell that projects to this relay cell
+        # This dendrite contains one synapse corresponding to this TRN->relay
+        # connection.
+        relayCellIndex = self.relayCellIndex((x,y))
+        trnCells = self._preSynapticTRNCells(x, y)
+        for trnCell in trnCells:
+          newSegment = self.relayConnections.createSegments([relayCellIndex])
+          self.relayConnections.growSynapses(newSegment,
+                                             [self.trnCellIndex(trnCell)], 1.0)
+
+
+  def _learnTRNToRelayCellConnections(self, relayCellsToLearnOn, trnIndices):
+    """
+
+    For each relay cell, create a dendritic segment with connections to each of
+    the given TRN cells.
+
+    :param relayCellsToLearnOn: list of relay cells that will learn,
+      specified as (x,y) coordinates.
+
+    :param trnIndices: cell indices of the TRN cells to connect to.
+
     """
     for x in range(self.relayWidth):
       for y in range(self.relayHeight):

@@ -60,6 +60,25 @@ def trainThalamusLocations(t, encoder):
                        [(x, y)])
 
 
+def inferThalamus(t, l6Input, ffInput):
+  """
+  Compute the effect of this feed forward input given the specific L6 input.
+
+  :param t: instance of Thalamus
+  :param l6Input:
+  :param ffInput: a numpy array of 0's and 1's
+  :return:
+  """
+  print("\n-----------")
+  t.reset()
+  t.deInactivateCells(l6Input)
+  ffOutput = t.computeFeedForwardActivity(ffInput)
+  # print("L6 input:", l6Input)
+  # print("Active TRN cells: ", t.activeTRNCellIndices)
+  # print("Burst ready relay cells: ", t.burstReadyCellIndices)
+  return ffOutput
+
+
 def getUnionLocations(encoder, x, y, r, step=1):
   """
   Return a union of location encodings that correspond to the union of all locations
@@ -77,6 +96,23 @@ def getUnionLocations(encoder, x, y, r, step=1):
 
 
 def trainThalamusLocationsTMP(t, encoder, windowSize=5):
+  """
+  Train the thalamus to recognize location SDRs. For each location (wx, wy), we create
+  an L6 SDR that represents that location.
+
+  We then train a set of TRN cells located in a window around (wx, wy) to recognize
+  that SDR.  Each TRN cell will contain a dendrite specific to (wx, wy). So we get a TRN
+  SDR that represents the location (wx, wy).
+
+  We also train a set of relay cells located in a window around (wx, wy) to recognize
+  that TRN SDR.  Each relay cell will contain a dendrite that recognizes the TRN SDR
+  corresponding to (wx, wy).
+
+  :param t:
+  :param encoder:
+  :param windowSize:
+  :return:
+  """
   print("Training TRN cells on location SDRs")
   output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
 
@@ -85,8 +121,10 @@ def trainThalamusLocationsTMP(t, encoder, windowSize=5):
     print(wy)
     for wx in range(0, t.trnWidth):
       e = encodeLocation(encoder, wx, wy, output)
+      trnIndices = set()
       for x in range(wx-windowSize, wx+windowSize):
         for y in range(wy - windowSize, wy + windowSize):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
-            t.learnL6Pattern(e, [(x, y)])
+            indices = t.learnL6Pattern(e, [(x, y)])
+            trnIndices = trnIndices.union(set(indices))
 
