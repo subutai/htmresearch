@@ -49,7 +49,7 @@ def encodeLocation(encoder, x, y, output, radius=5):
   return output.nonzero()[0]
 
 
-def trainThalamusLocations(t, encoder):
+def trainThalamusLocationsSimple(t, encoder):
   print("Training TRN cells on location SDRs")
   output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
 
@@ -95,7 +95,7 @@ def getUnionLocations(encoder, x, y, r, step=1):
   return locations
 
 
-def trainThalamusLocationsTMP(t, encoder, windowSize=5):
+def trainThalamus(t, encoder, windowSize=5):
   """
   Train the thalamus to recognize location SDRs. For each location (wx, wy), we create
   an L6 SDR that represents that location.

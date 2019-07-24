@@ -34,7 +34,7 @@ from scipy import ndimage as ndi
 
 from htmresearch.frameworks.thalamus.thalamus import Thalamus
 from htmresearch.frameworks.thalamus.thalamus_utils import (
-  createLocationEncoder, encodeLocation, trainThalamusLocations, inferThalamus,
+    createLocationEncoder, encodeLocation, trainThalamusLocationsSimple, inferThalamus,
   getUnionLocations, defaultDtype)
 
 
@@ -87,7 +87,7 @@ def locationsTest():
 
   encoder = createLocationEncoder(t)
 
-  trainThalamusLocations(t, encoder)
+  trainThalamusLocationsSimple(t, encoder)
 
   output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
   ff = np.zeros((32, 32))
@@ -129,7 +129,7 @@ def attention(w=250):
   )
 
   encoder = createLocationEncoder(t, w=17)
-  trainThalamusLocations(t, encoder)
+  trainThalamusLocationsSimple(t, encoder)
 
   print("Loading image")
   ff = loadImage(t)
@@ -226,7 +226,7 @@ def filtered(w=250):
     plotActivity(ft, "filtered"+str(i)+".jpg", "Filtered image", vmax=1.0)
 
   encoder = createLocationEncoder(t, w=17)
-  trainThalamusLocations(t, encoder)
+  trainThalamusLocationsSimple(t, encoder)
 
   filtered0 = power(ff, kernels[3])
   ft = np.zeros((w, w))
@@ -260,7 +260,7 @@ def filtered(w=250):
 
 
 # Simple tests for debugging
-def trainThalamus(t):
+def trainThalamusTest(t):
   # Learn
   t.learnL6Pattern([0, 1, 2, 3, 4, 5], [(0, 0), (2, 3)])
   t.learnL6Pattern([6, 7, 8, 9, 10], [(1, 1), (3, 4)])
@@ -269,7 +269,7 @@ def trainThalamus(t):
 def basicTest():
   t = Thalamus()
 
-  trainThalamus(t)
+  trainThalamusTest(t)
   ff = np.zeros((32,32))
   ff.reshape(-1)[[8, 9, 98, 99]] = 1.0
   inferThalamus(t, [0, 1, 2, 3, 4, 5], ff)
@@ -278,5 +278,5 @@ def basicTest():
 if __name__ == '__main__':
 
   basicTest()
-  attention(250)
-  filtered(250)
+  # attention(250)
+  # filtered(250)

@@ -39,7 +39,6 @@ from nupic.bindings.math import Random, SparseMatrixConnections
 
 class Thalamus(object):
   """
-
   A simple discrete time thalamus.  This thalamus has a 2D TRN layer and a 2D
   relay cell layer. L6 cells project to the dendrites of TRN cells - these
   connections are learned. TRN cells project to the dendrites of relay cells in
@@ -59,6 +58,10 @@ class Thalamus(object):
   input from an axon will either output tonic or burst activity depending on the
   state of the T-type CA2+ channels on their dendrites. Relay cells that don't
   receive input will remain inactive, regardless of their dendritic state.
+
+  This class assumes the shape of the feed forward input layer and the relay layer
+  are identical and aligned. Each relay cell receives input from a 3x3 block of
+  feed forward input neurons.
 
   Usage:
 
@@ -203,7 +206,7 @@ class Thalamus(object):
     self.burstReadyCells.reshape(-1)[self.burstReadyCellIndices] = 1
 
 
-  def computeFeedForwardActivity(self, feedForwardInput):
+  def computeFeedForwardActivity(self, feedForwardInput, tonicLevel=0.4):
     """
     Activate trnCells according to the l6Input. These in turn will impact
     bursting mode in relay cells that are connected to these trnCells.
@@ -214,6 +217,7 @@ class Thalamus(object):
       a numpy matrix of shape relayCellShape containing 0's and 1's
 
     :return:
+      Relay cell activity as a numpy matrix.
       feedForwardInput is modified to contain 0, 1, or 2. A "2" indicates
       bursting cells.
     """
@@ -375,9 +379,8 @@ class Thalamus(object):
 
   def _preSynapticFFCells(self, i, j):
     """
-    Given a relay cell at the given coordinate, return a list of the (x,y)
-    coordinates of all feed forward cells that project to it. This assumes a 3X3
-    fan-in.
+    Given a relay cell at the given coordinate, return a list of the (x,y) coordinates
+    of all feed forward input cells that project to it. This assumes a 3X3 fan-in.
 
     :param i, j: relay cell Coordinates
 
