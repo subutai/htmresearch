@@ -75,6 +75,34 @@ class Thalamus(object):
 
     5. Goto 2
 
+
+  Currently we have L6 patterns being recognized by TRN cells, which deinactivate relay
+  cell dendrites. The idea is that the L6 to relay cell connections act as a reset
+  signal and bring relay cells back to inactivated tonic mode. The reset is likely to be
+  a general broad signal. If there is a global reset, then all relay cell dendrites
+  would have the same set of connections.
+
+  This assumes that areas of interest are put into burst-ready mode. Alternatively we've
+  heard the opposite theory, that areas of non-interest are in burst ready mode. This
+  allows the neocortex to process attended areas, but something unusual happening
+  outside this area will cause attention to shift. In this case, tonic mode is the mode
+  used in attended areas, and the L6 to relay cell dendrites would be recognizing the
+  pattern. TRN cells would act more broadly to put relay cells into burst mode
+  everywhere except the attended areas.
+
+
+  There are several TODOs:
+
+  TODO: FF inputs should connect to specific dendritic segments, not globally on the cell.
+  Needed for true multiplexing.
+
+  TODO: incorporate actual convergence numbers from Convergence CT-TRN-TC.
+  Kultas-Ilinsky & Ilinsky 1991; Harting et al 1991, Norita & Katoh 1987, Cucchiaro 1991
+  (refs from Sato 1997)
+
+  TODO: currently the # TRN cells = # relay cells = # input axons. Remove this
+  restriction.
+
   """
 
   def __init__(self,
@@ -140,7 +168,8 @@ class Thalamus(object):
     # Initialize/reset variables that are updated with calls to compute
     self.reset()
 
-    self._initializeTRNToRelayCellConnections()
+    # OBSOLETE
+    # self._initializeTRNToRelayCellConnections()
 
 
   def learnL6Pattern(self, l6Pattern, cellsToLearnOn):
@@ -168,6 +197,31 @@ class Thalamus(object):
     # print("Learning L6 SDR:", l6Pattern,
     #       "new segments: ", newSegments,
     #       "cells:", self.trnConnections.mapSegmentsToCells(newSegments))
+
+    return cellIndices
+
+
+  def learnTRNPatternOnRelayCells(self, trnSDR, cellsToLearnOn):
+    """
+    Learn the given TRN pattern on relay cell dendrites. The relay cells to learn
+    are given in cellsTeLearnOn. Each of these cells will learn this pattern on
+    a single dendritic segment.
+
+    TODO: we could at this point connect to specific input axons on this dendrite.
+
+    :param trnSDR:
+      An SDR from TRN. List of indices corresponding to TRN cells.
+
+    :param cellsToLearnOn:
+      Each cell index is (x,y) corresponding to the relay cells that should learn
+      this pattern. For each cell, create a new dendrite that stores this
+      pattern. The SDR is stored on this dendrite
+
+    :return: the list of relay cell indices that learned this pattern
+    """
+    cellIndices = [self.relayCellIndex(x) for x in cellsToLearnOn]
+    newSegments = self.relayConnections.createSegments(cellIndices)
+    self.relayConnections.growSynapses(newSegments, trnSDR, 1.0)
 
     return cellIndices
 

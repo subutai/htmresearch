@@ -120,11 +120,22 @@ def trainThalamus(t, encoder, windowSize=5):
   for wy in range(0, t.trnHeight):
     print(wy)
     for wx in range(0, t.trnWidth):
-      e = encodeLocation(encoder, wx, wy, output)
-      trnIndices = set()
+      l6LocationSDR = encodeLocation(encoder, wx, wy, output)
+      
+      # Train TRN cells located around wx,wy to recognize this SDR. The set
+      # of TRN cells will represent a TRN SDR for this locationn.
+      trnSDRIndices = set()
       for x in range(wx-windowSize, wx+windowSize):
         for y in range(wy - windowSize, wy + windowSize):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
-            indices = t.learnL6Pattern(e, [(x, y)])
-            trnIndices = trnIndices.union(set(indices))
+            indices = t.learnL6Pattern(l6LocationSDR, [(x, y)])
+            trnSDRIndices = trnSDRIndices.union(set(indices))
+
+      # Train relay cells located around wx, wy to recognize the TRN SDR.
+      relaySDRIndices = set()
+      for x in range(wx-windowSize, wx+windowSize):
+        for y in range(wy - windowSize, wy + windowSize):
+          if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
+            indices = t.learnTRNPatternOnRelayCells(trnSDRIndices, [(x, y)])
+            relaySDRIndices = relaySDRIndices.union(set(indices))
 

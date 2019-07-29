@@ -25,31 +25,10 @@ from __future__ import print_function
 
 import unittest
 
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-
-import skimage
-from skimage import data
-from skimage.util import img_as_float
-from skimage.filters import gabor_kernel
-from scipy import ndimage as ndi
-
 from htmresearch.frameworks.thalamus.thalamus import Thalamus
 from htmresearch.frameworks.thalamus.thalamus_utils import (
   createLocationEncoder, encodeLocation, trainThalamusLocationsSimple, inferThalamus,
   getUnionLocations, defaultDtype)
-
-
-# def _randomSDR(numOfBits, size):
-#   """
-#   Creates a random SDR for the given cell count and SDR size
-#   :param numOfBits: Total number of bits
-#   :param size: Number of active bits desired in the SDR
-#   :return: list with active bits indexes in SDR
-#   """
-#   return random.sample(xrange(numOfBits), size)
 
 
 class ThalamusTest(unittest.TestCase):
@@ -58,29 +37,53 @@ class ThalamusTest(unittest.TestCase):
   """
 
 
-  def testLearnL6(self):
-    """Simple test of the basic interface for L4L2Experiment."""
+  def testLearnL6Pattern(self):
+    """Simple test of the basic learn l6 pattern interface."""
     t = Thalamus()
 
     # Learn to associate two L6 SDRs with 2 TRN cells each
     indices1 = t.learnL6Pattern([0, 1, 2, 3, 4, 5], [(0, 0), (2, 3)])
     self.assertEqual(set(indices1), {0, 98})
+    self.assertEqual(2, t.trnConnections.nSegments())
+    self.assertEqual([1, 1], list(t.trnConnections.getSegmentCounts([0, 98])))
 
-    indices2 = t.learnL6Pattern([6, 7, 8, 9, 10], [(1, 1), (3, 4)])
-    self.assertEqual(set(indices2), {33, 131})
+    # Learn to associate another two L6 SDRs with 2 TRN cells each
+    indices2 = t.learnL6Pattern([6, 7, 8, 9, 10], [(1, 1), (2, 3)])
+    self.assertEqual(set(indices2), {33, 98})
+    self.assertEqual(4, t.trnConnections.nSegments())
+    self.assertEqual([1, 1, 2, 0],
+                     list(t.trnConnections.getSegmentCounts([0, 33, 98, 131])))
 
-    ff = np.zeros((32, 32))
-    ff.reshape(-1)[[8, 9, 98, 99]] = 1.0
+    # ff = np.zeros((32, 32))
+    # ff.reshape(-1)[[8, 9, 98, 99]] = 1.0
+    #
+    # # Should contain no bursting
+    # ffOutput = inferThalamus(t, [0, 1, 2, 3, 4, 5], ff)
+    # self.assertEqual(ff.sum(), 4.0)
+    # self.assertEqual((ff == 2).sum(), 0.0)
+    #
+    # # With lower TRN threshold, should contain two bursting cells
+    # t.trnActivationThreshold = 2
+    # ffOutput = inferThalamus(t, [0, 1, 2, 3, 4, 5], ff)
+    # # self.assertEqual((ff == 2).sum(), 2.0)
 
-    # Should contain no bursting
-    ffOutput = inferThalamus(t, [0, 1, 2, 3, 4, 5], ff)
-    self.assertEqual(ff.sum(), 4.0)
-    self.assertEqual((ff == 2).sum(), 0.0)
 
-    # With lower TRN threshold, should contain two bursting cells
-    t.trnActivationThreshold = 2
-    ffOutput = inferThalamus(t, [0, 1, 2, 3, 4, 5], ff)
-    # self.assertEqual((ff == 2).sum(), 2.0)
+  def testLearnTRNPatternOnRelayCells(self):
+    """Simple test of the basic learn TRN patterns."""
+    t = Thalamus()
+
+    # Learn to associate two L6 SDRs with 2 TRN cells each
+    indices1 = t.learnTRNPatternOnRelayCells([0, 1, 2, 3, 4, 5], [(0, 0), (2, 3)])
+    self.assertEqual(set(indices1), {0, 98})
+    self.assertEqual(2, t.relayConnections.nSegments())
+    self.assertEqual([1, 1], list(t.relayConnections.getSegmentCounts([0, 98])))
+
+    # Learn to associate another two L6 SDRs with 2 TRN cells each
+    indices2 = t.learnTRNPatternOnRelayCells([6, 7, 8, 9, 10], [(1, 1), (2, 3)])
+    self.assertEqual(set(indices2), {33, 98})
+    self.assertEqual(4, t.relayConnections.nSegments())
+    self.assertEqual([1, 1, 2, 0],
+                     list(t.relayConnections.getSegmentCounts([0, 33, 98, 131])))
 
 
 if __name__ == "__main__":
