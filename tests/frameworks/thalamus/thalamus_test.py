@@ -28,7 +28,7 @@ import unittest
 from htmresearch.frameworks.thalamus.thalamus import Thalamus
 from htmresearch.frameworks.thalamus.thalamus_utils import (
   createLocationEncoder, encodeLocation, trainThalamusLocationsSimple, inferThalamus,
-  getUnionLocations, defaultDtype)
+  getUnionLocations, defaultDtype, trainThalamus)
 
 
 class ThalamusTest(unittest.TestCase):
@@ -84,6 +84,13 @@ class ThalamusTest(unittest.TestCase):
     self.assertEqual(4, t.relayConnections.nSegments())
     self.assertEqual([1, 1, 2, 0],
                      list(t.relayConnections.getSegmentCounts([0, 33, 98, 131])))
+
+
+  def testTrainThalamus(self):
+    """Train thalamus utility."""
+    t = Thalamus()
+    encoder = createLocationEncoder(t, w=17)
+    trainThalamus(t, encoder)
 
 
 if __name__ == "__main__":

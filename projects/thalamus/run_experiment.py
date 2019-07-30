@@ -34,7 +34,7 @@ from scipy import ndimage as ndi
 
 from htmresearch.frameworks.thalamus.thalamus import Thalamus
 from htmresearch.frameworks.thalamus.thalamus_utils import (
-    createLocationEncoder, encodeLocation, trainThalamusLocationsSimple, inferThalamus,
+    createLocationEncoder, encodeLocation, trainThalamus, inferThalamus,
   getUnionLocations, defaultDtype)
 
 
@@ -87,7 +87,7 @@ def locationsTest():
 
   encoder = createLocationEncoder(t)
 
-  trainThalamusLocationsSimple(t, encoder)
+  trainThalamus(t, encoder)
 
   output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
   ff = np.zeros((32, 32))
@@ -129,7 +129,7 @@ def attention(w=250):
   )
 
   encoder = createLocationEncoder(t, w=17)
-  trainThalamusLocationsSimple(t, encoder)
+  trainThalamus(t, encoder)
 
   print("Loading image")
   ff = loadImage(t)
@@ -226,7 +226,7 @@ def filtered(w=250):
     plotActivity(ft, "filtered"+str(i)+".jpg", "Filtered image", vmax=1.0)
 
   encoder = createLocationEncoder(t, w=17)
-  trainThalamusLocationsSimple(t, encoder)
+  trainThalamus(t, encoder)
 
   filtered0 = power(ff, kernels[3])
   ft = np.zeros((w, w))
@@ -277,6 +277,6 @@ def basicTest():
 
 if __name__ == '__main__':
 
-  basicTest()
-  # attention(250)
+  # basicTest()
+  attention(250)
   # filtered(250)
