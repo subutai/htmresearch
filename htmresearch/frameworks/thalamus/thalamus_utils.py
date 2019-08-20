@@ -97,8 +97,9 @@ def getUnionLocations(encoder, x, y, r, step=1):
 
 def trainThalamus(t, encoder, windowSize=5):
   """
-  Train the thalamus to recognize location SDRs. For each location (wx, wy), we create
-  an L6 SDR that represents that location.
+  Train the thalamus to recognize location SDRs.
+
+  For each location (wx, wy), we create an L6 SDR that represents that location.
 
   We then train a set of TRN cells located in a window around (wx, wy) to recognize
   that SDR.  Each TRN cell will contain a dendrite specific to (wx, wy). So we get a TRN
@@ -107,6 +108,9 @@ def trainThalamus(t, encoder, windowSize=5):
   We also train a set of relay cells located in a window around (wx, wy) to recognize
   that TRN SDR.  Each relay cell will contain a dendrite that recognizes the TRN SDR
   corresponding to (wx, wy).
+
+  At the end, each (wx, wy), will activate a set of TRN cells. This set of TRN cells
+  will activate a set of relay cells.
 
   :param t:
   :param encoder:
@@ -124,18 +128,26 @@ def trainThalamus(t, encoder, windowSize=5):
       
       # Train TRN cells located around wx,wy to recognize this SDR. The set
       # of TRN cells will represent a TRN SDR for this locationn.
+      # TODO: convert loop to list comprehension
       trnSDRIndices = set()
+      trnCellsToLearnOn = []
       for x in range(wx-windowSize, wx+windowSize):
         for y in range(wy - windowSize, wy + windowSize):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
-            indices = t.learnL6Pattern(l6LocationSDR, [(x, y)])
-            trnSDRIndices = trnSDRIndices.union(set(indices))
+            trnCellsToLearnOn.append((x, y))
+
+      indices = t.learnL6Pattern(l6LocationSDR, trnCellsToLearnOn)
+      trnSDRIndices = list(trnSDRIndices.union(set(indices)))
 
       # Train relay cells located around wx, wy to recognize the TRN SDR.
+      relayCellsToLearnOn = []
       relaySDRIndices = set()
       for x in range(wx-windowSize, wx+windowSize):
         for y in range(wy - windowSize, wy + windowSize):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
-            indices = t.learnTRNPatternOnRelayCells(trnSDRIndices, [(x, y)])
-            relaySDRIndices = relaySDRIndices.union(set(indices))
+            relayCellsToLearnOn.append((x, y))
+
+      indices = t.learnTRNPatternOnRelayCells(
+                                  trnSDRIndices, (wx, wy), relayCellsToLearnOn)
+      relaySDRIndices = relaySDRIndices.union(set(indices))
 

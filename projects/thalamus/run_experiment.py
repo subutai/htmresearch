@@ -278,5 +278,5 @@ def basicTest():
 if __name__ == '__main__':
 
   # basicTest()
-  attention(250)
-  # filtered(250)
+  # attention(250)
+  filtered(250)

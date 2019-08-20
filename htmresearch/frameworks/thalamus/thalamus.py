@@ -65,7 +65,8 @@ class Thalamus(object):
 
   Usage:
 
-    1. Train the TRN cells on a bunch of L6 patterns: learnL6Pattern()
+    1. Train the TRN cells on a bunch of L6 patterns using
+       learnL6Pattern() and learnTRNPatternOnRelayCells()
 
     2. De-inactivate relay cells by sending in an L6 pattern: deInactivateCells()
 
@@ -91,17 +92,16 @@ class Thalamus(object):
   everywhere except the attended areas.
 
 
-  There are several TODOs:
+  There are still a few TODOs:
 
-  TODO: FF inputs should connect to specific dendritic segments, not globally on the cell.
-  Needed for true multiplexing.
+  TODO: reset mechanism needs to be implemented.
 
   TODO: incorporate actual convergence numbers from Convergence CT-TRN-TC.
   Kultas-Ilinsky & Ilinsky 1991; Harting et al 1991, Norita & Katoh 1987, Cucchiaro 1991
   (refs from Sato 1997)
 
   TODO: currently the # TRN cells = # relay cells = # input axons. Remove this
-  restriction.
+  restriction. (Low priority)
 
   """
 
@@ -111,7 +111,7 @@ class Thalamus(object):
                inputShape=(32, 32),
                l6CellCount=1024,
                trnThreshold=10,
-               relayThreshold=1,
+               relayThreshold=10,
                seed=42):
     """
 
@@ -153,7 +153,6 @@ class Thalamus(object):
 
 
     self.l6CellCount = l6CellCount
-    self.relayThreshold = relayThreshold
     self.seed = seed
     self.rng = Random(seed)
     self.trnActivationThreshold = trnThreshold
@@ -161,15 +160,18 @@ class Thalamus(object):
     self.trnConnections = SparseMatrixConnections(
       trnCellShape[0]*trnCellShape[1], l6CellCount)
 
-    self.relayConnections = SparseMatrixConnections(
+    self.relayTRNSegmentThreshold = relayThreshold
+    self.relayTRNSegments = SparseMatrixConnections(
       relayCellShape[0]*relayCellShape[1],
       trnCellShape[0]*trnCellShape[1])
 
+    self.relayFFSegmentThreshold = 1
+    self.relayFFSegments = SparseMatrixConnections(
+      relayCellShape[0]*relayCellShape[1],
+      inputShape[0]*inputShape[1])
+
     # Initialize/reset variables that are updated with calls to compute
     self.reset()
-
-    # OBSOLETE
-    # self._initializeTRNToRelayCellConnections()
 
 
   def learnL6Pattern(self, l6Pattern, cellsToLearnOn):
@@ -201,13 +203,29 @@ class Thalamus(object):
     return cellIndices
 
 
-  def learnTRNPatternOnRelayCells(self, trnSDR, cellsToLearnOn):
+  def learnTRNPatternOnRelayCells(self, trnSDR, ffCoord, cellsToLearnOn):
     """
     Learn the given TRN pattern on relay cell dendrites. The relay cells to learn
-    are given in cellsTeLearnOn. Each of these cells will learn this pattern on
-    a single dendritic segment.
+    are given in cellsToLearnOn.
 
-    TODO: we could at this point connect to specific input axons on this dendrite.
+    Implementation note:
+
+    Each of these cells will learn the TRN pattern on a single segment in
+    relayTRNSegments. Each of these cells will also learn the associated feed forward
+    input (single feed forward axon) onto a segment in relayFFSegments. Each dendrite on
+    a relay cell is represented by one segment in relayTRNSegments plus one segment in
+    relayFFSegments. We thus enforce a one to one correspondence between these two lists
+    of segments.
+
+    This separation into two lists is required to independently identify whether a TRN
+    pattern is detected, whether a FF input is detected, and then whether the cell is
+    responding in bursting or tonic mode. Case 1) If a TRN pattern is detected on a
+    segment, that dendrite is in de-inactivated mode. If the associated dendrite
+    contains a segment that also recognizes the FF input, the dendrite will burst and
+    cause the cell to respond with burst firing. Case 2) Otherwise, if a dendrite
+    detects a FF input, but its corresponding dendrite is not de-inactivated (and no
+    other dendrite is bursting) the cell will respond with tonic firing. Case 3)
+    Otherwise (no FF input detected on any dendrite) the cell will be silent.
 
     :param trnSDR:
       An SDR from TRN. List of indices corresponding to TRN cells.
@@ -220,8 +238,18 @@ class Thalamus(object):
     :return: the list of relay cell indices that learned this pattern
     """
     cellIndices = [self.relayCellIndex(x) for x in cellsToLearnOn]
-    newSegments = self.relayConnections.createSegments(cellIndices)
-    self.relayConnections.growSynapses(newSegments, trnSDR, 1.0)
+
+    # We create exactly the same number of segments to hold TRN connections and FF
+    # connections respectively. We enforce the same segment indices for TRN and FF
+    # connections.
+    newTRNSegments = self.relayTRNSegments.createSegments(cellIndices)
+    newFFSegments = self.relayFFSegments.createSegments(cellIndices)
+    assert (np.array_equal(newFFSegments, newTRNSegments))
+    self.relayTRNSegments.growSynapses(newTRNSegments, trnSDR, 1.0)
+
+    # Now we want the FF dendrites to create a connection to this FF pattern.
+    ffIndex = [self.ffCellIndex(ffCoord)]
+    self.relayFFSegments.growSynapses(newFFSegments, ffIndex)
 
     return cellIndices
 
@@ -249,13 +277,21 @@ class Thalamus(object):
     #   print(self.trnOverlaps[s], idx, self.trnIndextoCoord(idx))
 
     # Figure out which relay cells have dendrites in de-inactivated state
-    self.relayOverlaps = self.relayConnections.computeActivity(
+    self.relayTRNSegmentOverlaps = self.relayTRNSegments.computeActivity(
       self.activeTRNCellIndices, 0.5
     )
     self.activeRelaySegments = np.flatnonzero(
-      self.relayOverlaps >= self.relayThreshold)
-    self.burstReadyCellIndices = self.relayConnections.mapSegmentsToCells(
+      self.relayTRNSegmentOverlaps >= self.relayTRNSegmentThreshold)
+    self.burstReadyCellIndices = self.relayTRNSegments.mapSegmentsToCells(
       self.activeRelaySegments)
+
+    # relayTRNSegmentOverlaps is a numpy array containing the overlap score
+    # with the TRN input for each TRN segment.
+    #
+    # activeRelaySegments is a numpy array holding segment indices for those
+    # segments that are de-inactivated
+    #
+    # burstReadyCellIndices contains the cell index for each segment in activeRelaySegments
 
     self.burstReadyCells.reshape(-1)[self.burstReadyCellIndices] = 1
 
@@ -300,7 +336,7 @@ class Thalamus(object):
     self.trnOverlaps = []
     self.activeTRNSegments = []
     self.activeTRNCellIndices = []
-    self.relayOverlaps = []
+    self.relayTRNSegmentOverlaps = []
     self.activeRelaySegments = []
     self.burstReadyCellIndices = []
     self.burstReadyCells = np.zeros((self.relayWidth, self.relayHeight))
@@ -354,6 +390,30 @@ class Thalamus(object):
     return x, y
 
 
+  def ffCellIndex(self, coord):
+    """
+    Map a 2D coordinate to 1D cell index.
+
+    :param coord: a 2D coordinate
+
+    :return: integer index
+    """
+    return coord[1] * self.inputWidth + coord[0]
+
+
+  def ffIndextoCoord(self, i):
+    """
+    Map 1D cell index to a 2D coordinate
+
+    :param i: integer 1D cell index
+
+    :return: (x, y), a 2D coordinate
+    """
+    x = i % self.inputWidth
+    y = i / self.inputWidth
+    return x, y
+
+
   def _initializeTRNToRelayCellConnections(self):
     """
     Initialize TRN to relay cell connectivity. For each relay cell, create a
@@ -368,35 +428,35 @@ class Thalamus(object):
         relayCellIndex = self.relayCellIndex((x,y))
         trnCells = self._preSynapticTRNCells(x, y)
         for trnCell in trnCells:
-          newSegment = self.relayConnections.createSegments([relayCellIndex])
-          self.relayConnections.growSynapses(newSegment,
+          newSegment = self.relayTRNSegments.createSegments([relayCellIndex])
+          self.relayTRNSegments.growSynapses(newSegment,
                                              [self.trnCellIndex(trnCell)], 1.0)
 
 
-  def _learnTRNToRelayCellConnections(self, relayCellsToLearnOn, trnIndices):
-    """
-
-    For each relay cell, create a dendritic segment with connections to each of
-    the given TRN cells.
-
-    :param relayCellsToLearnOn: list of relay cells that will learn,
-      specified as (x,y) coordinates.
-
-    :param trnIndices: cell indices of the TRN cells to connect to.
-
-    """
-    for x in range(self.relayWidth):
-      for y in range(self.relayHeight):
-
-        # Create one dendrite for each trn cell that projects to this relay cell
-        # This dendrite contains one synapse corresponding to this TRN->relay
-        # connection.
-        relayCellIndex = self.relayCellIndex((x,y))
-        trnCells = self._preSynapticTRNCells(x, y)
-        for trnCell in trnCells:
-          newSegment = self.relayConnections.createSegments([relayCellIndex])
-          self.relayConnections.growSynapses(newSegment,
-                                             [self.trnCellIndex(trnCell)], 1.0)
+  # OBSOLETE
+  # def _learnTRNToRelayCellConnections(self, relayCellsToLearnOn, trnIndices):
+  #   """
+  #   For each relay cell, create a dendritic segment with connections to each of
+  #   the given TRN cells.
+  #
+  #   :param relayCellsToLearnOn: list of relay cells that will learn,
+  #     specified as (x,y) coordinates.
+  #
+  #   :param trnIndices: cell indices of the TRN cells to connect to.
+  #
+  #   """
+  #   for x in range(self.relayWidth):
+  #     for y in range(self.relayHeight):
+  #
+  #       # Create one dendrite for each trn cell that projects to this relay cell
+  #       # This dendrite contains one synapse corresponding to this TRN->relay
+  #       # connection.
+  #       relayCellIndex = self.relayCellIndex((x,y))
+  #       trnCells = self._preSynapticTRNCells(x, y)
+  #       for trnCell in trnCells:
+  #         newSegment = self.relayTRNSegments.createSegments([relayCellIndex])
+  #         self.relayTRNSegments.growSynapses(newSegment,
+  #                                            [self.trnCellIndex(trnCell)], 1.0)
 
 
   def _initializeRelayCellDendrites(self):
