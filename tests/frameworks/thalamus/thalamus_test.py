@@ -106,6 +106,55 @@ class ThalamusTest(unittest.TestCase):
                      t.relayFFSegments.matrix.rowNonZeros(3)[0][0])
 
 
+  def testDeinactivateCells(self):
+    """Train the thalamus on two TRN SDRs and then test deinactivation."""
+    t = Thalamus(
+      trnCellShape=(16, 16),
+      relayCellShape=(16, 16),
+      inputShape=(16, 16),
+      trnThreshold=5,
+      relayThreshold=5,
+    )
+
+    # Learn to associate the L6 SDR [0, 1, 2, 3, 4] with TRN cells in location
+    # (1, 1) - (3, 3) inclusive to get TRN SDR1
+    l6SDR1 = [0, 1, 2, 3, 4]
+    trnSDR1 = t.learnL6Pattern(l6SDR1,
+                                [
+                                  (1, 1), (1, 2), (1, 3),
+                                  (2, 1), (2, 2), (2, 3),
+                                  (3, 1), (3, 2), (3, 3),
+                                ])
+    # Train the relay cell at (2, 2) to associate TRN SDR1 with FF location (2, 2)
+    relayIndices1 = t.learnTRNPatternOnRelayCells(trnSDR1, (2, 2), [(2, 2)])
+
+    # Learn to associate the L6 SDR [5, 6, 7, 8, 9] with TRN cells in location
+    # (11, 11) - (13, 13) inclusive to get TRN SDR2
+    l6SDR2 = [5, 6, 7, 8, 9]
+    trnSDR2 = t.learnL6Pattern(l6SDR2,
+                                [
+                                  (11, 11), (11, 12), (11, 13),
+                                  (12, 11), (12, 12), (12, 13),
+                                  (13, 11), (13, 12), (13, 13),
+                                ])
+
+    # Train the relay cell at (12, 12) to associate TRN SDR2 with FF location (12, 12)
+    relayIndices2 = t.learnTRNPatternOnRelayCells(trnSDR2, (12, 12), [(12, 12)])
+
+    # Deinactivate using each L6 SDR and ensure that the correct relay cells become
+    # burst ready
+    t.deInactivateCells(l6SDR1)
+    self.assertEqual(set(t.burstReadyCellIndices), set(relayIndices1))
+    self.assertEqual(set(t.burstReadyCells.reshape(-1).nonzero()[0]),
+                     set(relayIndices1))
+
+    t.reset()
+    t.deInactivateCells(l6SDR2)
+    self.assertEqual(set(t.burstReadyCellIndices), set(relayIndices2))
+    self.assertEqual(set(t.burstReadyCells.reshape(-1).nonzero()[0]),
+                     set(relayIndices2))
+
+
   def testTrainThalamus(self):
     """Train thalamus utility."""
     t = Thalamus(

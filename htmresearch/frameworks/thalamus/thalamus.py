@@ -270,6 +270,7 @@ class Thalamus(object):
     or bursting.
     
     :param l6Input:
+      List of L6 cell indices that are ON
 
     :return: nothing
     """
