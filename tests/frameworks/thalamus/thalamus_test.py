@@ -74,18 +74,36 @@ class ThalamusTest(unittest.TestCase):
     """Simple test of the basic learn TRN patterns."""
     t = Thalamus()
 
-    # Learn to associate two L6 SDRs with 2 TRN cells each
-    indices1 = t.learnTRNPatternOnRelayCells([0, 1, 2, 3, 4, 5], [(0, 0), (2, 3)])
+    # Learn to associate an L6 SDRs and a FF coordinate with 2 relay cells
+    # Check that TRN and FF segments on those cells have the same counts
+    indices1 = t.learnTRNPatternOnRelayCells([0, 1, 2, 3, 4, 5], (2, 3),
+                                             [(0, 0), (2, 3)])
     self.assertEqual(set(indices1), {0, 98})
     self.assertEqual(2, t.relayTRNSegments.nSegments())
+    self.assertEqual(2, t.relayFFSegments.nSegments())
     self.assertEqual([1, 1], list(t.relayTRNSegments.getSegmentCounts([0, 98])))
+    self.assertEqual([1, 1], list(t.relayFFSegments.getSegmentCounts([0, 98])))
 
-    # Learn to associate another two L6 SDRs with 2 TRN cells each
-    indices2 = t.learnTRNPatternOnRelayCells([6, 7, 8, 9, 10], [(1, 1), (2, 3)])
+    # Ensure FF segments have the correct input cell
+    self.assertEqual(t.ffCellIndex((2, 3)),
+                     t.relayFFSegments.matrix.rowNonZeros(0)[0][0])
+    self.assertEqual(t.ffCellIndex((2, 3)),
+                     t.relayFFSegments.matrix.rowNonZeros(1)[0][0])
+
+    # Learn to associate another L6 SDRs and a FF coordinate with 2 relay cells
+    indices2 = t.learnTRNPatternOnRelayCells([6, 7, 8, 9, 10], (1, 1),
+                                             [(1, 1), (2, 3)])
     self.assertEqual(set(indices2), {33, 98})
     self.assertEqual(4, t.relayTRNSegments.nSegments())
+    self.assertEqual(4, t.relayFFSegments.nSegments())
     self.assertEqual([1, 1, 2, 0],
                      list(t.relayTRNSegments.getSegmentCounts([0, 33, 98, 131])))
+    self.assertEqual([1, 1, 2, 0],
+                     list(t.relayFFSegments.getSegmentCounts([0, 33, 98, 131])))
+    self.assertEqual(t.ffCellIndex((1, 1)),
+                     t.relayFFSegments.matrix.rowNonZeros(2)[0][0])
+    self.assertEqual(t.ffCellIndex((1, 1)),
+                     t.relayFFSegments.matrix.rowNonZeros(3)[0][0])
 
 
   def testTrainThalamus(self):

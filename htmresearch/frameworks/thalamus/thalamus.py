@@ -65,7 +65,7 @@ class Thalamus(object):
 
   Usage:
 
-    1. Train the TRN cells on a bunch of L6 patterns using
+    1. Train the TRN and relay cells on a bunch of L6 patterns using
        learnL6Pattern() and learnTRNPatternOnRelayCells()
 
     2. De-inactivate relay cells by sending in an L6 pattern: deInactivateCells()
@@ -102,6 +102,9 @@ class Thalamus(object):
 
   TODO: currently the # TRN cells = # relay cells = # input axons. Remove this
   restriction. (Low priority)
+
+  TODO: implement an offset relationship. Bursts indicate a mismatch between prediction
+  and stimulus. Can this explain the low frequency of bursting?
 
   """
 
@@ -203,10 +206,11 @@ class Thalamus(object):
     return cellIndices
 
 
-  def learnTRNPatternOnRelayCells(self, trnSDR, ffCoord, cellsToLearnOn):
+  def learnTRNPatternOnRelayCells(self, trnSDRIndices, ffCoord, cellsToLearnOn):
     """
-    Learn the given TRN pattern on relay cell dendrites. The relay cells to learn
-    are given in cellsToLearnOn.
+    Learn the given TRN pattern on relay cell dendrites. The dendrite also associates
+    with the given feed forward coordinate. The relay cells to learn are given in
+    cellsToLearnOn.
 
     Implementation note:
 
@@ -227,16 +231,20 @@ class Thalamus(object):
     other dendrite is bursting) the cell will respond with tonic firing. Case 3)
     Otherwise (no FF input detected on any dendrite) the cell will be silent.
 
-    :param trnSDR:
-      An SDR from TRN. List of indices corresponding to TRN cells.
+    :param trnSDRIndices:
+      An SDR from TRN. List of indices corresponding to TRN cells, [idx1, idx2, ...]
+
+    :param ffCoord:
+      The coordinate of the associated feed forward axon, (x,y)
 
     :param cellsToLearnOn:
-      Each cell index is (x,y) corresponding to the relay cells that should learn
-      this pattern. For each cell, create a new dendrite that stores this
-      pattern. The SDR is stored on this dendrite
+      List of cell coordinates [(x, y), ...]. Each cell coord corresponds to a relay
+      cell that should learn this pattern. For each cell, create a new dendrite that
+      learns this trnSDR and the ffCoord.
 
     :return: the list of relay cell indices that learned this pattern
     """
+    assert len(ffCoord)==2
     cellIndices = [self.relayCellIndex(x) for x in cellsToLearnOn]
 
     # We create exactly the same number of segments to hold TRN connections and FF
@@ -245,11 +253,11 @@ class Thalamus(object):
     newTRNSegments = self.relayTRNSegments.createSegments(cellIndices)
     newFFSegments = self.relayFFSegments.createSegments(cellIndices)
     assert (np.array_equal(newFFSegments, newTRNSegments))
-    self.relayTRNSegments.growSynapses(newTRNSegments, trnSDR, 1.0)
+    self.relayTRNSegments.growSynapses(newTRNSegments, trnSDRIndices, 1.0)
 
     # Now we want the FF dendrites to create a connection to this FF pattern.
     ffIndex = [self.ffCellIndex(ffCoord)]
-    self.relayFFSegments.growSynapses(newFFSegments, ffIndex)
+    self.relayFFSegments.growSynapses(newFFSegments, ffIndex, 1.0)
 
     return cellIndices
 
@@ -312,21 +320,65 @@ class Thalamus(object):
       bursting cells.
     """
     ff = feedForwardInput.copy()
-    # For each relay cell, see if any of its FF inputs are active.
-    for x in range(self.relayWidth):
-      for y in range(self.relayHeight):
-        inputCells = self._preSynapticFFCells(x, y)
-        for idx in inputCells:
-          if feedForwardInput[idx] != 0:
-            ff[x, y] = 1.0
-            continue
+    ffLocations = ff.nonzero()
+    ffindices = [self.ffCellIndex(c) for c in ffLocations]
+    self.ffOverlaps = self.relayFFSegments.computeActivity(ffindices, 0.5)
+    self.activeFFSegments = np.flatnonzero(self.ffOverlaps >= 1)
 
-    # If yes, and it is in burst mode, this cell bursts
-    # If yes, and it is not in burst mode, then we just get tonic input.
+    # Now, any cell with an activeFFSegment will respond in tonic mode
 
-    # ff += self.burstReadyCells * ff
-    ff2 = ff * 0.4 + self.burstReadyCells * ff
+    # Now, those cells where activeFFSegments and activeRelaySegments match
+    # up will respond in burst mode, and override tonic mode.
+
+    # # For each relay cell, see if any of its FF inputs are active.
+    # for x in range(self.relayWidth):
+    #   for y in range(self.relayHeight):
+    #     inputCells = self._preSynapticFFCells(x, y)
+    #     for idx in inputCells:
+    #       if feedForwardInput[idx] != 0:
+    #         ff[x, y] = 1.0
+    #         continue
+    #
+    # # If yes, and it is in burst mode, this cell bursts
+    # # If yes, and it is not in burst mode, then we just get tonic input.
+    #
+    # # ff += self.burstReadyCells * ff
+    ff2 = ff * tonicLevel + self.burstReadyCells * ff
     return ff2
+
+
+  # OLD WAY
+  # def computeFeedForwardActivity(self, feedForwardInput, tonicLevel=0.4):
+  #   """
+  #   Activate trnCells according to the l6Input. These in turn will impact
+  #   bursting mode in relay cells that are connected to these trnCells.
+  #   Given the feedForwardInput, compute which cells will be silent, tonic,
+  #   or bursting.
+  #
+  #   :param feedForwardInput:
+  #     a numpy matrix of shape relayCellShape containing 0's and 1's
+  #
+  #   :return:
+  #     Relay cell activity as a numpy matrix.
+  #     feedForwardInput is modified to contain 0, 1, or 2. A "2" indicates
+  #     bursting cells.
+  #   """
+  #   ff = feedForwardInput.copy()
+  #   # For each relay cell, see if any of its FF inputs are active.
+  #   for x in range(self.relayWidth):
+  #     for y in range(self.relayHeight):
+  #       inputCells = self._preSynapticFFCells(x, y)
+  #       for idx in inputCells:
+  #         if feedForwardInput[idx] != 0:
+  #           ff[x, y] = 1.0
+  #           continue
+  #
+  #   # If yes, and it is in burst mode, this cell bursts
+  #   # If yes, and it is not in burst mode, then we just get tonic input.
+  #
+  #   # ff += self.burstReadyCells * ff
+  #   ff2 = ff * tonicLevel + self.burstReadyCells * ff
+  #   return ff2
 
 
   def reset(self):

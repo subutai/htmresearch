@@ -110,44 +110,37 @@ def trainThalamus(t, encoder, windowSize=5):
   corresponding to (wx, wy).
 
   At the end, each (wx, wy), will activate a set of TRN cells. This set of TRN cells
-  will activate a set of relay cells.
+  will de-inactivate a set of relay cells.
 
   :param t:
   :param encoder:
   :param windowSize:
   :return:
   """
-  print("Training TRN cells on location SDRs")
   output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
 
   # Train the TRN cells to respond to SDRs representing locations
   for wy in range(0, t.trnHeight):
-    print(wy)
     for wx in range(0, t.trnWidth):
       l6LocationSDR = encodeLocation(encoder, wx, wy, output)
       
       # Train TRN cells located around wx,wy to recognize this SDR. The set
       # of TRN cells will represent a TRN SDR for this locationn.
       # TODO: convert loop to list comprehension
-      trnSDRIndices = set()
       trnCellsToLearnOn = []
       for x in range(wx-windowSize, wx+windowSize):
         for y in range(wy - windowSize, wy + windowSize):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
             trnCellsToLearnOn.append((x, y))
 
-      indices = t.learnL6Pattern(l6LocationSDR, trnCellsToLearnOn)
-      trnSDRIndices = list(trnSDRIndices.union(set(indices)))
+      trnSDRIndices = t.learnL6Pattern(l6LocationSDR, trnCellsToLearnOn)
 
       # Train relay cells located around wx, wy to recognize the TRN SDR.
       relayCellsToLearnOn = []
-      relaySDRIndices = set()
       for x in range(wx-windowSize, wx+windowSize):
         for y in range(wy - windowSize, wy + windowSize):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
             relayCellsToLearnOn.append((x, y))
 
-      indices = t.learnTRNPatternOnRelayCells(
-                                  trnSDRIndices, (wx, wy), relayCellsToLearnOn)
-      relaySDRIndices = relaySDRIndices.union(set(indices))
+      t.learnTRNPatternOnRelayCells(trnSDRIndices, (wx, wy), relayCellsToLearnOn)
 
