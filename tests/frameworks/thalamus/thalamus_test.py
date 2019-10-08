@@ -156,27 +156,56 @@ class ThalamusTest(unittest.TestCase):
 
 
   def testTrainThalamus(self):
-    """Train thalamus utility."""
+    """Train thalamus ."""
     t = Thalamus(
       trnCellShape=(16, 16),
       relayCellShape=(16, 16),
       inputShape=(16, 16),
-      trnThreshold=5,
-      relayThreshold=5,
+      trnThreshold=11,
+      relayThreshold=9,
     )
     encoder = createLocationEncoder(t, w=11)
-    trainThalamus(t, encoder, windowSize=3)
+
+    # Each location will be recognized by 3x3=9 TRN cells.
+    trainThalamus(t, encoder, windowSize=1)
 
     output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
     l6Input = encodeLocation(encoder, 8, 8, output)
 
-    ffInput = np.zeros((16, 16))
-    ffInput[:] = 0
-    ffInput[10:20, 10:20] = 1
-
     t.reset()
     t.deInactivateCells(l6Input)
-    ffOutput = t.computeFeedForwardActivity(ffInput)
+
+    # With high TRN and relay thresholds, there should be exactly 9 TRN cells
+    # that recognize a single location, and exactly 9 relay cells that detect
+    # these 9 TRN cells on their dendrites.
+    self.assertEqual(len(t.activeTRNCellIndices), 9)
+    self.assertEqual(len(t.burstReadyCellIndices), 9)
+
+    ffInput = np.zeros((16, 16))
+    ffInput[:] = 0
+    ffInput[8, 8] = 1
+    ffInput[15, 15] = 1
+
+    # A 3X3 set of cells around (8,8) should be bursting. A 3x3 set of cells
+    # around (15,15) should be in tonic mode (this will be 4 cells due to
+    # the boundary).
+    ffOutput = t.computeFeedForwardActivity(ffInput, tonicLevel=0.5)
+    self.assertEqual(ffOutput[7:10, 7:10].max(), 1)
+    self.assertEqual(ffOutput[7:10, 7:10].min(), 1)
+    self.assertEqual(ffOutput[14:16, 14:16].max(), 0.5)
+    self.assertEqual(ffOutput[14:16, 14:16].min(), 0.5)
+    self.assertEqual(ffOutput.sum(), 9 + 0.5*4)
+
+    # With greater TRN and relay thresholds, there should be more than 9 TRN cells
+    # that recognize a single location, and more than 9 relay cells that detect
+    # these TRN cells on their dendrites.
+    l6Input = encodeLocation(encoder, 8, 8, output)
+    t.reset()
+    t.setThresholds(trnThreshold=5, relayThreshold=5)
+    t.deInactivateCells(l6Input)
+
+    self.assertGreater(len(t.activeTRNCellIndices), 9)
+    self.assertGreater(len(t.burstReadyCellIndices), 9)
 
 
 if __name__ == "__main__":

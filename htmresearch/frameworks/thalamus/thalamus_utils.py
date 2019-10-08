@@ -123,13 +123,13 @@ def trainThalamus(t, encoder, windowSize=5):
   for wy in range(0, t.trnHeight):
     for wx in range(0, t.trnWidth):
       l6LocationSDR = encodeLocation(encoder, wx, wy, output)
-      
+
       # Train TRN cells located around wx,wy to recognize this SDR. The set
       # of TRN cells will represent a TRN SDR for this locationn.
       # TODO: convert loop to list comprehension
       trnCellsToLearnOn = []
-      for x in range(wx-windowSize, wx+windowSize):
-        for y in range(wy - windowSize, wy + windowSize):
+      for x in range(wx-windowSize, wx+windowSize+1):
+        for y in range(wy - windowSize, wy + windowSize+1):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
             trnCellsToLearnOn.append((x, y))
 
@@ -137,10 +137,9 @@ def trainThalamus(t, encoder, windowSize=5):
 
       # Train relay cells located around wx, wy to recognize the TRN SDR.
       relayCellsToLearnOn = []
-      for x in range(wx-windowSize, wx+windowSize):
-        for y in range(wy - windowSize, wy + windowSize):
+      for x in range(wx-windowSize, wx+windowSize+1):
+        for y in range(wy - windowSize, wy + windowSize+1):
           if x >= 0 and x < t.trnWidth and y >= 0 and y < t.trnHeight:
             relayCellsToLearnOn.append((x, y))
 
       t.learnTRNPatternOnRelayCells(trnSDRIndices, (wx, wy), relayCellsToLearnOn)
-

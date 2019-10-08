@@ -289,10 +289,10 @@ class Thalamus(object):
     self.relayTRNSegmentOverlaps = self.relayTRNSegments.computeActivity(
       self.activeTRNCellIndices, 0.5
     )
-    self.activeRelaySegments = np.flatnonzero(
+    self.activeRelayTRNSegments = np.flatnonzero(
       self.relayTRNSegmentOverlaps >= self.relayTRNSegmentThreshold)
     self.burstReadyCellIndices = self.relayTRNSegments.mapSegmentsToCells(
-      self.activeRelaySegments)
+      self.activeRelayTRNSegments)
 
     # relayTRNSegmentOverlaps is a numpy array containing the overlap score
     # with the TRN input for each TRN segment.
@@ -300,7 +300,8 @@ class Thalamus(object):
     # activeRelaySegments is a numpy array holding segment indices for those
     # segments that are de-inactivated
     #
-    # burstReadyCellIndices contains the cell index for each segment in activeRelaySegments
+    # burstReadyCellIndices contains the cell index for each segment
+    # in activeRelaySegments, each relay cell that has a burst ready dendrite
 
     self.burstReadyCells.reshape(-1)[self.burstReadyCellIndices] = 1
 
@@ -315,71 +316,40 @@ class Thalamus(object):
     :param feedForwardInput:
       a numpy matrix of shape relayCellShape containing 0's and 1's
 
+    :param tonicLevel:
+      The output value corresponding to tonicLevel
+
     :return:
       Relay cell activity as a numpy matrix.
-      feedForwardInput is modified to contain 0, 1, or 2. A "2" indicates
-      bursting cells.
+      feedForwardInput is modified to contain 0, tonicLevel, or 1. A "1"
+      indicates a bursting cell.
     """
+
+    # Get a list of all relay cell segments that recognize this FF pattern.
     ff = feedForwardInput.copy()
     ffLocations = ff.nonzero()
-    ffindices = [self.ffCellIndex(c) for c in ffLocations]
+    ffindices = [self.ffCellIndex(c) for c in zip(ffLocations[0],ffLocations[1])]
     self.ffOverlaps = self.relayFFSegments.computeActivity(ffindices, 0.5)
     self.activeFFSegments = np.flatnonzero(self.ffOverlaps >= 1)
 
-    # Now, any cell with an activeFFSegment will respond in tonic mode
+    # Compute intersection with active relay segments that detect TRN patterns
+    # and locate associated relay cell indices. These cells will be bursting.
+    burstingSegments = set(self.activeFFSegments).intersection(
+      set(self.activeRelayTRNSegments))
+    burstingCellIndices = self.relayFFSegments.mapSegmentsToCells(list(burstingSegments))
 
-    # Now, those cells where activeFFSegments and activeRelaySegments match
-    # up will respond in burst mode, and override tonic mode.
+    # The cells that have FF patterns but have not detected TRN patterns on the same
+    # segments will be tonic firing.
+    nonBurstingSegments = set(self.activeFFSegments) - set(self.activeRelayTRNSegments)
+    tonicCellIndices = self.relayFFSegments.mapSegmentsToCells(list(nonBurstingSegments))
 
-    # # For each relay cell, see if any of its FF inputs are active.
-    # for x in range(self.relayWidth):
-    #   for y in range(self.relayHeight):
-    #     inputCells = self._preSynapticFFCells(x, y)
-    #     for idx in inputCells:
-    #       if feedForwardInput[idx] != 0:
-    #         ff[x, y] = 1.0
-    #         continue
-    #
-    # # If yes, and it is in burst mode, this cell bursts
-    # # If yes, and it is not in burst mode, then we just get tonic input.
-    #
-    # # ff += self.burstReadyCells * ff
-    ff2 = ff * tonicLevel + self.burstReadyCells * ff
+    ff2 = np.zeros(feedForwardInput.shape)
+    for tonicIndex in tonicCellIndices:
+      ff2[self.ffIndextoCoord(tonicIndex)] = tonicLevel
+    for burstIndex in burstingCellIndices:
+      ff2[self.ffIndextoCoord(burstIndex)] = 1
+
     return ff2
-
-
-  # OLD WAY
-  # def computeFeedForwardActivity(self, feedForwardInput, tonicLevel=0.4):
-  #   """
-  #   Activate trnCells according to the l6Input. These in turn will impact
-  #   bursting mode in relay cells that are connected to these trnCells.
-  #   Given the feedForwardInput, compute which cells will be silent, tonic,
-  #   or bursting.
-  #
-  #   :param feedForwardInput:
-  #     a numpy matrix of shape relayCellShape containing 0's and 1's
-  #
-  #   :return:
-  #     Relay cell activity as a numpy matrix.
-  #     feedForwardInput is modified to contain 0, 1, or 2. A "2" indicates
-  #     bursting cells.
-  #   """
-  #   ff = feedForwardInput.copy()
-  #   # For each relay cell, see if any of its FF inputs are active.
-  #   for x in range(self.relayWidth):
-  #     for y in range(self.relayHeight):
-  #       inputCells = self._preSynapticFFCells(x, y)
-  #       for idx in inputCells:
-  #         if feedForwardInput[idx] != 0:
-  #           ff[x, y] = 1.0
-  #           continue
-  #
-  #   # If yes, and it is in burst mode, this cell bursts
-  #   # If yes, and it is not in burst mode, then we just get tonic input.
-  #
-  #   # ff += self.burstReadyCells * ff
-  #   ff2 = ff * tonicLevel + self.burstReadyCells * ff
-  #   return ff2
 
 
   def reset(self):
@@ -390,9 +360,18 @@ class Thalamus(object):
     self.activeTRNSegments = []
     self.activeTRNCellIndices = []
     self.relayTRNSegmentOverlaps = []
-    self.activeRelaySegments = []
+    self.activeRelayTRNSegments = []
     self.burstReadyCellIndices = []
     self.burstReadyCells = np.zeros((self.relayWidth, self.relayHeight))
+
+
+  def setThresholds(self, trnThreshold, relayThreshold):
+    self.trnActivationThreshold = trnThreshold
+    self.relayTRNSegmentThreshold = relayThreshold
+
+
+  def getThresholds(self):
+    return self.trnActivationThreshold, self.relayTRNSegmentThreshold
 
 
   def trnCellIndex(self, coord):
