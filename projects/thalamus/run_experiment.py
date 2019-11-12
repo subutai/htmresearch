@@ -126,10 +126,11 @@ def attention(w=250):
     inputShape=(w, w),
     l6CellCount=128*128,
     trnThreshold=15,
+    relayThreshold=8
   )
 
   encoder = createLocationEncoder(t, w=17)
-  trainThalamus(t, encoder)
+  trainThalamus(t, encoder, windowSize=3)
 
   print("Loading image")
   ff = loadImage(t)
@@ -162,7 +163,7 @@ def attention(w=250):
                )
   plotActivity(ffOutput, "cajal_relay_output_eye.jpg",
                title="Filtered activity",
-               cmap="Greys")
+               cmap="coolwarm")
 
   # The ear
   x=25
@@ -177,7 +178,7 @@ def attention(w=250):
                )
   plotActivity(ffOutput, "cajal_relay_output_ear.jpg",
                title="Filtered activity",
-               cmap="Greys")
+               cmap="coolwarm")
 
   return t
 
@@ -278,5 +279,5 @@ def basicTest():
 if __name__ == '__main__':
 
   # basicTest()
-  # attention(250)
-  filtered(250)
+  attention(250)
+  # filtered(250)

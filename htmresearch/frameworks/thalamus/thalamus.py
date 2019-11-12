@@ -306,7 +306,8 @@ class Thalamus(object):
     self.burstReadyCells.reshape(-1)[self.burstReadyCellIndices] = 1
 
 
-  def computeFeedForwardActivity(self, feedForwardInput, tonicLevel=0.4):
+  def computeFeedForwardActivity(self, feedForwardInput, tonicLevel=0.4,
+                                 burstLevel=2.0):
     """
     Activate trnCells according to the l6Input. These in turn will impact
     bursting mode in relay cells that are connected to these trnCells.
@@ -321,8 +322,8 @@ class Thalamus(object):
 
     :return:
       Relay cell activity as a numpy matrix.
-      feedForwardInput is modified to contain 0, tonicLevel, or 1. A "1"
-      indicates a bursting cell.
+      feedForwardInput is modified to contain 0, tonicLevel, or burstLevel and
+      indicates whether the relay cell is silent, tonic firing, or bursting.
     """
 
     # Get a list of all relay cell segments that recognize this FF pattern.
@@ -347,7 +348,7 @@ class Thalamus(object):
     for tonicIndex in tonicCellIndices:
       ff2[self.ffIndextoCoord(tonicIndex)] = tonicLevel
     for burstIndex in burstingCellIndices:
-      ff2[self.ffIndextoCoord(burstIndex)] = 1
+      ff2[self.ffIndextoCoord(burstIndex)] = burstLevel
 
     return ff2
 

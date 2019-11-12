@@ -121,6 +121,7 @@ def trainThalamus(t, encoder, windowSize=5):
 
   # Train the TRN cells to respond to SDRs representing locations
   for wy in range(0, t.trnHeight):
+    print(wy)
     for wx in range(0, t.trnWidth):
       l6LocationSDR = encodeLocation(encoder, wx, wy, output)
 

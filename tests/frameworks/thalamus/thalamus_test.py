@@ -155,6 +155,32 @@ class ThalamusTest(unittest.TestCase):
                      set(relayIndices2))
 
 
+  def testDeinactivateCells(self):
+    """Train thalamus ."""
+    t = Thalamus(
+      trnCellShape=(16, 16),
+      relayCellShape=(16, 16),
+      inputShape=(16, 16),
+      trnThreshold=5,
+      relayThreshold=5,
+    )
+    encoder = createLocationEncoder(t, w=11)
+    output = np.zeros(encoder.getWidth(), dtype=defaultDtype)
+
+    # Each location will be recognized by 3x3=9 TRN cells.
+    trainThalamus(t, encoder, windowSize=1)
+
+    # With lower TRN and relay thresholds, there should be more than 9 TRN cells
+    # that recognize a single location, and more than 9 relay cells that detect
+    # these TRN cells on their dendrites.
+    l6Input = encodeLocation(encoder, 8, 8, output)
+    t.reset()
+    t.deInactivateCells(l6Input)
+
+    self.assertGreater(len(t.activeTRNCellIndices), 9)
+    self.assertGreater(len(t.burstReadyCellIndices), 9)
+
+
   def testTrainThalamus(self):
     """Train thalamus ."""
     t = Thalamus(
@@ -190,22 +216,12 @@ class ThalamusTest(unittest.TestCase):
     # around (15,15) should be in tonic mode (this will be 4 cells due to
     # the boundary).
     ffOutput = t.computeFeedForwardActivity(ffInput, tonicLevel=0.5)
-    self.assertEqual(ffOutput[7:10, 7:10].max(), 1)
-    self.assertEqual(ffOutput[7:10, 7:10].min(), 1)
+    self.assertEqual(ffOutput[7:10, 7:10].max(), 2)
+    self.assertEqual(ffOutput[7:10, 7:10].min(), 2)
     self.assertEqual(ffOutput[14:16, 14:16].max(), 0.5)
     self.assertEqual(ffOutput[14:16, 14:16].min(), 0.5)
-    self.assertEqual(ffOutput.sum(), 9 + 0.5*4)
+    self.assertEqual(ffOutput.sum(), 9*2 + 0.5*4)
 
-    # With greater TRN and relay thresholds, there should be more than 9 TRN cells
-    # that recognize a single location, and more than 9 relay cells that detect
-    # these TRN cells on their dendrites.
-    l6Input = encodeLocation(encoder, 8, 8, output)
-    t.reset()
-    t.setThresholds(trnThreshold=5, relayThreshold=5)
-    t.deInactivateCells(l6Input)
-
-    self.assertGreater(len(t.activeTRNCellIndices), 9)
-    self.assertGreater(len(t.burstReadyCellIndices), 9)
 
 
 if __name__ == "__main__":
